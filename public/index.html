@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>간단한 파일 업로드</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+
+    .upload-container {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .drop-area {
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 20px;
+    }
+
+    .drop-area.highlight {
+      border-color: #4CAF50;
+      background-color: rgba(76, 175, 80, 0.1);
+    }
+
+    .drop-area p {
+      font-size: 18px;
+      color: #666;
+      margin: 0;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .progress-container {
+      margin-top: 20px;
+      display: none;
+    }
+
+    .progress-bar {
+      height: 20px;
+      background-color: #e0e0e0;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+
+    .progress {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0;
+      transition: width 0.3s;
+    }
+
+    .file-info {
+      display: flex;
+      justify-content: space-between;
+      color: #666;
+    }
+
+    .file-list {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .file-list h2 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .file-item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .file-item:last-child {
+      border-bottom: none;
+    }
+
+    .file-name {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .file-size {
+      color: #666;
+    }
+
+    .file-date {
+      color: #999;
+      font-size: 0.9em;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .success {
+      background-color: rgba(76, 175, 80, 0.1);
+      color: #4CAF50;
+    }
+
+    .error {
+      background-color: rgba(244, 67, 54, 0.1);
+      color: #F44336;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .partial-uploads {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .partial-uploads h2 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .file-item.partial {
+      padding: 15px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .progress-bar.partial {
+      height: 10px;
+      background-color: #e0e0e0;
+      border-radius: 5px;
+      margin: 5px 0;
+      overflow: hidden;
+    }
+
+    .partial-uploads button {
+      align-self: flex-end;
+      padding: 5px 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .partial-uploads button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>간단한 파일 업로드</h1>
+
+  <div class="upload-container">
+    <div id="drop-area" class="drop-area">
+      <p>파일을 여기에 드래그하거나 클릭하여 선택하세요</p>
+      <input type="file" id="file-input" class="file-input">
+    </div>
+
+    <div id="progress-container" class="progress-container">
+      <div class="progress-bar">
+        <div id="progress" class="progress"></div>
+      </div>
+      <div class="file-info">
+        <span id="file-name"></span>
+        <span id="file-size"></span>
+      </div>
+      <div id="status" class="status hidden"></div>
+    </div>
+  </div>
+
+  <div class="file-list">
+    <h2>업로드된 파일 목록</h2>
+    <div id="file-list-container"></div>
+  </div>
+
+  <script>
+    // 파일 목록 로드 (전역 함수로 이동)
+    function loadFileList() {
+      const fileListContainer = document.getElementById('file-list-container');
+      fetch('/files')
+        .then(response => response.json())
+        .then(files => {
+          fileListContainer.innerHTML = '';
+
+          if (files.length === 0) {
+            fileListContainer.innerHTML = '<p>업로드된 파일이 없습니다.</p>';
+            return;
+          }
+
+          files.forEach(file => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+
+            const fileInfo = document.createElement('div');
+
+            const fileName = document.createElement('div');
+            fileName.className = 'file-name';
+            fileName.textContent = file.name;
+
+            const fileSize = document.createElement('div');
+            fileSize.className = 'file-size';
+            fileSize.textContent = formatFileSize(file.size);
+
+            fileInfo.appendChild(fileName);
+            fileInfo.appendChild(fileSize);
+
+            const fileDate = document.createElement('div');
+            fileDate.className = 'file-date';
+            fileDate.textContent = new Date(file.date).toLocaleString();
+
+            fileItem.appendChild(fileInfo);
+            fileItem.appendChild(fileDate);
+
+            fileListContainer.appendChild(fileItem);
+          });
+        })
+        .catch(error => {
+          console.error('파일 목록을 불러오는 중 오류 발생:', error);
+          fileListContainer.innerHTML = '<p>파일 목록을 불러올 수 없습니다.</p>';
+        });
+    }
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const dropArea = document.getElementById('drop-area');
+      const fileInput = document.getElementById('file-input');
+      const progressContainer = document.getElementById('progress-container');
+      const progressBar = document.getElementById('progress');
+      const fileName = document.getElementById('file-name');
+      const fileSize = document.getElementById('file-size');
+      const status = document.getElementById('status');
+      const fileListContainer = document.getElementById('file-list-container');
+
+      // 부분 업로드 파일 목록 표시 함수
+      function displayPartialUploads() {
+        fetch('/partial-uploads')
+          .then(response => response.json())
+          .then(files => {
+            const partialContainer = document.createElement('div');
+            partialContainer.className = 'partial-uploads';
+            partialContainer.innerHTML = '<h2>부분 업로드된 파일</h2>';
+
+            if (files.length === 0) {
+              partialContainer.innerHTML += '<p>부분 업로드된 파일이 없습니다.</p>';
+            } else {
+              files.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item partial';
+                fileItem.innerHTML = `
+                  <div class="file-name">${file.name}</div>
+                  <div class="file-info">
+                    <span>${formatBytes(file.uploadedSize)} / ${formatBytes(file.totalSize)}</span>
+                    <span>${file.progress}% 완료</span>
+                  </div>
+                  <div class="progress-bar partial">
+                    <div class="progress" style="width: ${file.progress}%"></div>
+                  </div>
+                  <button onclick="resumeUpload('${file.fileId}', '${encodeURIComponent(file.name)}', ${file.totalSize})">재개</button>
+                `;
+                partialContainer.appendChild(fileItem);
+              });
+            }
+
+            // 기존 부분 업로드 컨테이너 제거 후 새로 추가
+            const existingPartial = document.querySelector('.partial-uploads');
+            if (existingPartial) {
+              existingPartial.replaceWith(partialContainer);
+            } else {
+              document.querySelector('.upload-container').after(partialContainer);
+            }
+          })
+          .catch(error => {
+            console.error('부분 업로드 목록 조회 오류:', error);
+          });
+      }
+
+      // 파일 크기 포맷팅 함수
+      function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      // 초기 부분 업로드 목록 로드
+      displayPartialUploads();
+
+      // 드래그 앤 드롭 이벤트 처리
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+      });
+
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, highlight, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, unhighlight, false);
+      });
+
+      function highlight() {
+        dropArea.classList.add('highlight');
+      }
+
+      function unhighlight() {
+        dropArea.classList.remove('highlight');
+      }
+
+      // 파일 드롭 처리
+      dropArea.addEventListener('drop', handleDrop, false);
+
+      // 파일 선택 처리
+      dropArea.addEventListener('click', () => {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files.length) {
+          handleFiles(fileInput.files);
+        }
+      });
+
+      function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+      }
+
+      function handleFiles(files) {
+        if (files.length === 0) return;
+
+        const file = files[0]; // 단일 파일만 처리
+        displayFileInfo(file);
+
+        // 파일 크기에 따라 일반 업로드 또는 청크 업로드 선택
+        const CHUNK_THRESHOLD = 10 * 1024 * 1024; // 10MB 이상일 경우 청크 업로드
+        if (file.size > CHUNK_THRESHOLD) {
+          uploadInChunks(file);
+        } else {
+          uploadFile(file);
+        }
+      }
+
+      function displayFileInfo(file) {
+        const fileName = document.getElementById('file-name');
+        const fileSize = document.getElementById('file-size');
+        const progressBar = document.getElementById('progress');
+        const status = document.getElementById('status');
+        const progressContainer = document.getElementById('progress-container');
+
+        fileName.textContent = file.name;
+        fileSize.textContent = formatFileSize(file.size);
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        status.className = 'status hidden';
+
+        // Update progress bar and status for resume functionality
+        if (file.progress) {
+          progressBar.style.width = file.progress + '%';
+          status.textContent = `Resuming upload (${file.progress}% complete)`;
+          status.className = 'status';
+        }
+      }
+
+
+
+      // 파일 업로드 시 FormData에 파일명을 명시적으로 UTF-8로 추가
+      function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file); // Multer will get originalname from Content-Disposition
+
+        const xhr = new XMLHttpRequest();
+
+        // 업로드 진행 상황 표시
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = (e.loaded / e.total) * 100;
+            progressBar.style.width = percentComplete + '%';
+          }
+        });
+
+        // 업로드 완료 처리
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            status.textContent = '업로드 성공!';
+            status.className = 'status success';
+            loadFileList(); // 파일 목록 갱신
+            // 서버에서 최신 부분 업로드 목록 가져와 갱신
+            fetch('/partial-uploads')
+              .then(response => response.json())
+              .then(files => {
+                if (files.length === 0) {
+                  // 부분 업로드된 파일이 없으면 컨테이너 제거
+                  const partialContainer = document.querySelector('.partial-uploads');
+                  if (partialContainer) {
+                    partialContainer.remove();
+                  }
+                } else {
+                  displayPartialUploads(); // 부분 업로드 목록 갱신
+                }
+              });
+          } else {
+            status.textContent = '업로드 실패: ' + xhr.statusText;
+            status.className = 'status error';
+          }
+        });
+
+        // 에러 처리
+        xhr.addEventListener('error', () => {
+          status.textContent = '업로드 중 오류가 발생했습니다.';
+          status.className = 'status error';
+        });
+
+        // 요청 보내기
+        xhr.open('POST', '/upload');
+        xhr.send(formData);
+      }
+
+      // 초기 파일 목록 로드
+      loadFileList();
+      async function resumeUpload(fileId, fileName, totalSize) {
+        try {
+          // Check existing chunks first
+          const checkResponse = await fetch(`/check-chunks?fileId=${encodeURIComponent(fileId)}`);
+          if (!checkResponse.ok) {
+            throw new Error('Failed to check existing chunks');
+          }
+
+          const { nextChunk } = await checkResponse.json();
+
+          // Create a file input element to trigger file selection
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '*/*';
+
+          input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Verify the file matches the partial upload
+            if (file.name !== decodeURIComponent(fileName) || file.size !== totalSize) {
+              alert('파일이 일치하지 않습니다. 동일한 파일을 선택해주세요.');
+              return;
+            }
+
+            // Display file info with progress
+            file.progress = Math.round((nextChunk / Math.ceil(totalSize / (5 * 1024 * 1024))) * 100);
+            displayFileInfo(file);
+
+            // Start upload from next chunk
+            uploadInChunks(file, nextChunk);
+          };
+
+          input.click();
+        } catch (error) {
+          console.error('이어올리기 실패:', error);
+          const status = document.getElementById('status');
+          status.textContent = '이어올리기 실패: ' + error.message;
+          status.className = 'status error';
+        }
+      }
+
+      // 초기 파일 목록 로드
+      loadFileList();
+
+      // 부분 업로드된 파일 목록 표시
+      displayPartialUploads();
+    });
+
+    // 부분 업로드된 파일 목록 표시 함수
+    async function displayPartialUploads() {
+      try {
+        const response = await fetch('/partial-uploads');
+        if (response.ok) {
+          const partialFiles = await response.json();
+
+          if (partialFiles.length > 0) {
+            const partialUploadsDiv = document.createElement('div');
+            partialUploadsDiv.className = 'partial-uploads';
+            partialUploadsDiv.innerHTML = '<h2>부분 업로드된 파일</h2>';
+
+            partialFiles.forEach(file => {
+              const fileItem = document.createElement('div');
+              fileItem.className = 'file-item partial';
+
+              const fileInfo = document.createElement('div');
+
+              const fileName = document.createElement('div');
+              fileName.className = 'file-name';
+              fileName.textContent = file.name;
+
+              const fileSize = document.createElement('div');
+              fileSize.className = 'file-size';
+              fileSize.textContent = `${formatFileSize(file.uploadedSize)} / ${formatFileSize(file.totalSize)}`;
+
+              const progressBar = document.createElement('div');
+              progressBar.className = 'progress-bar partial';
+              progressBar.innerHTML = `<div class="progress" style="width: ${(file.uploadedSize / file.totalSize) * 100}%"></div>`;
+
+              const resumeBtn = document.createElement('button');
+              resumeBtn.textContent = '이어올리기';
+              resumeBtn.onclick = () => {
+                // 파일 선택 트리거 (실제 구현은 더 복잡할 수 있음)
+                alert(`이어올리기 기능 구현 필요: ${file.name}`);
+              };
+
+              fileInfo.appendChild(fileName);
+              fileInfo.appendChild(fileSize);
+              fileItem.appendChild(fileInfo);
+              fileItem.appendChild(progressBar);
+              fileItem.appendChild(resumeBtn);
+              partialUploadsDiv.appendChild(fileItem);
+            });
+
+            document.querySelector('.file-list').insertAdjacentElement('beforebegin', partialUploadsDiv);
+          }
+        }
+      } catch (error) {
+        console.error('부분 업로드된 파일 목록을 불러오는 중 오류 발생:', error);
+      }
+    }
+
+    // 파일을 청크로 분할하여 전송하는 함수 추가
+    async function uploadInChunks(file) {
+      const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB 청크
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      // 파일 이름과 크기를 기반으로 fileId 생성 (간단한 방식)
+      // 더 강력한 고유 ID를 원하면 crypto API 등을 사용할 수 있습니다.
+      // 파일명과 크기를 명확히 구분할 수 있도록 fileId 생성
+      const fileId = `${encodeURIComponent(file.name)}_${file.size}`;
+      console.log(`Generated fileId: ${fileId} for file: ${file.name}`);
+
+      let startChunk = 0;
+      // DOM 요소 다시 가져오기 (scope 문제 해결)
+      const progressBar = document.getElementById('progress');
+      const status = document.getElementById('status');
+
+      try {
+        const response = await fetch(`/check-chunks?fileId=${encodeURIComponent(fileId)}`); // fileId도 인코딩
+        if (response.ok) {
+          const data = await response.json();
+          startChunk = data.nextChunk || 0;
+          console.log(`Resuming upload for ${file.name} (fileId: ${fileId}) from chunk ${startChunk}`);
+          // 진행 표시 업데이트
+          if (startChunk > 0 && startChunk < totalChunks) {
+            const percentComplete = (startChunk / totalChunks) * 100;
+            progressBar.style.width = percentComplete + '%';
+            status.textContent = `이어올리기 시작: ${startChunk}/${totalChunks}`;
+            status.className = 'status'; // 기본 상태로
+          } else if (startChunk === totalChunks && totalChunks > 0) {
+            // 이미 모든 청크가 업로드된 경우 (예: 이전 업로드 완료 후 재시도)
+            progressBar.style.width = '100%';
+            status.textContent = '이미 업로드 완료됨';
+            status.className = 'status success';
+            loadFileList();
+            return; // 업로드 중단
+          }
+        } else {
+          console.warn(`Failed to check existing chunks for ${fileId}, server status: ${response.status}. Starting from 0.`);
+        }
+      } catch (error) {
+        console.warn(`Error checking existing chunks for ${fileId}, starting from 0:`, error);
+      }
+
+      // 업로드 시작 시 상태 메시지 설정
+      if (startChunk < totalChunks) {
+        status.textContent = `업로드 중... (청크 ${startChunk + 1}/${totalChunks})`;
+        status.className = 'status';
+      }
+
+      for (let chunkNumber = startChunk; chunkNumber < totalChunks; chunkNumber++) {
+        const start = chunkNumber * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+
+        const formData = new FormData();
+        formData.append('fileId', fileId);
+        formData.append('chunkNumber', chunkNumber);
+        formData.append('totalChunks', totalChunks);
+        formData.append('fileName', encodeURIComponent(file.name)); // 파일 이름 인코딩
+        formData.append('chunk', chunk);
+
+        try {
+          const response = await fetch('/upload-chunk', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error(`Chunk upload failed for ${file.name}, chunk ${chunkNumber}:`, errorData.error);
+            status.textContent = `청크 업로드 실패: ${chunkNumber + 1} (오류: ${errorData.error || response.statusText})`;
+            status.className = 'status error';
+            return; // 오류 발생 시 업로드 중단
+          }
+
+          updateProgress(chunkNumber + 1, totalChunks);
+        } catch (error) {
+          console.error(`Error uploading chunk ${chunkNumber} for ${file.name}:`, error);
+          status.textContent = `청크 업로드 중 오류 발생: ${chunkNumber + 1}`;
+          status.className = 'status error';
+          return; // 네트워크 오류 등 발생 시 업로드 중단
+        }
+      }
+
+      // 모든 청크 업로드 완료 후 처리
+      if (document.getElementById('progress').style.width === '100%') {
+        status.textContent = '파일 병합 중...';
+        status.className = 'status';
+
+        // 병합 완료 확인을 위한 주기적 체크
+        const checkMerge = async () => {
+          try {
+            const response = await fetch(`/check-merge?fileId=${encodeURIComponent(fileId)}`);
+            if (response.ok) {
+              const result = await response.json();
+              if (result.merged) {
+                status.textContent = '업로드 성공!';
+                status.className = 'status success';
+                loadFileList();
+                displayPartialUploads();
+                return true;
+              }
+            }
+            return false;
+          } catch (error) {
+            console.error('병합 상태 확인 오류:', error);
+            return false;
+          }
+        };
+
+        // 최초 확인
+        if (await checkMerge()) return;
+
+        // 주기적 확인 (2초 간격)
+        const intervalId = setInterval(async () => {
+          if (await checkMerge()) {
+            clearInterval(intervalId);
+          }
+        }, 2000);
+      }
+    }
+
+    function updateProgress(currentChunk, totalChunks) {
+      const percentComplete = (currentChunk / totalChunks) * 100;
+      const progressBar = document.getElementById('progress'); // progressBar 변수 다시 가져오기
+      const status = document.getElementById('status'); // status 변수 다시 가져오기
+
+      progressBar.style.width = percentComplete + '%';
+      if (currentChunk < totalChunks) {
+        status.textContent = `업로드 중... (청크 ${currentChunk}/${totalChunks})`;
+      } else if (currentChunk === totalChunks) {
+        status.textContent = '파일 병합 중...'; // 마지막 청크 업로드 후 병합 중 메시지 표시
+      }
+    }
+    // 전역 범위로 이동된 resumeUpload 함수
+    async function resumeUpload(fileId, fileName, totalSize) {
+      try {
+        // Check existing chunks first
+        const checkResponse = await fetch(`/check-chunks?fileId=${encodeURIComponent(fileId)}`);
+        if (!checkResponse.ok) {
+          throw new Error('Failed to check existing chunks');
+        }
+
+        const { nextChunk } = await checkResponse.json();
+
+        // Create a file input element to trigger file selection
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '*/*';
+
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          // Verify the file matches the partial upload
+          if (file.name !== decodeURIComponent(fileName) || file.size !== totalSize) {
+            alert('파일이 일치하지 않습니다. 동일한 파일을 선택해주세요.');
+            return;
+          }
+
+          // Update UI directly without displayFileInfo
+          const fileNameElement = document.getElementById('file-name');
+          const fileSizeElement = document.getElementById('file-size');
+          const progressBar = document.getElementById('progress');
+          const statusElement = document.getElementById('status');
+          const progressContainer = document.getElementById('progress-container');
+
+          fileNameElement.textContent = file.name;
+          fileSizeElement.textContent = formatFileSize(file.size);
+          progressContainer.style.display = 'block';
+
+          const progress = Math.round((nextChunk / Math.ceil(totalSize / (5 * 1024 * 1024))) * 100);
+          progressBar.style.width = progress + '%';
+          statusElement.textContent = `이어올리기 진행 중 (${progress}% 완료)`;
+          statusElement.className = 'status';
+
+          // Start upload from next chunk
+          uploadInChunks(file, nextChunk);
+        };
+
+        input.click();
+      } catch (error) {
+        console.error('이어올리기 실패:', error);
+        const status = document.getElementById('status');
+        status.textContent = '이어올리기 실패: ' + error.message;
+        status.className = 'status error';
+      }
+    }
+
+  </script>
+</body>
+
+</html>
