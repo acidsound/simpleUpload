@@ -23,6 +23,7 @@ This document outlines the requirements and implementation steps to create a Nod
     *   Increase server timeout and request body size limits to accommodate large file uploads.
     *   Serve a static `index.html` for client-side interaction.
     *   Provide an endpoint (`/files`) to list uploaded files.
+    *   Provide instructions for exposing the server externally via SSH tunnel (password automation not supported; manual entry required).
 4.  **Client-Side (`index.html`):**
     *   Provide a user interface for selecting and uploading files.
     *   Implement logic for both standard and chunked uploads.
@@ -34,6 +35,14 @@ This document outlines the requirements and implementation steps to create a Nod
         *   Display upload progress.
         *   Handle upload completion and errors.
     *   Refresh file list after successful uploads.
+
+## Exposing the Server Externally (SSH Tunnel)
+
+To access the server from outside your local network, use the following SSH tunnel command. Password automation is not supported; you must enter the password manually in the terminal:
+
+```bash
+ssh -p 443 -R0:127.0.0.1:3000 qr@free.pinggy.io
+```
 
 ## Key Implementation Details & Libraries
 
