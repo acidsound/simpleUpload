@@ -6,7 +6,8 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-    
+
+
 // CORS 설정
 app.use(cors());
 
@@ -412,10 +413,22 @@ app.get('/partial-uploads', (req, res) => {
   }
 });
 
+function exposeHTTPLink(PORT) {
+  // SSH password automation is not supported; prompt user for password manually.
+  const { spawn } = require('child_process');
+  const command = 'ssh';
+  const args = ['-p', '443', `-R0:127.0.0.1:${PORT}`, 'qr@free.pinggy.io'];
+  const sshProcess = spawn(command, args, { stdio: 'inherit' });
+  sshProcess.on('close', (code) => {
+    console.log(`SSH process exited with code ${code}`);
+  });
+}
+
 // 서버 시작
 const server = app.listen(PORT, () => {
   console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
   console.log(`업로드 폴더: ${uploadDir}`);
+  exposeHTTPLink(PORT);
 });
 
 // 서버 타임아웃 설정 (2시간)
